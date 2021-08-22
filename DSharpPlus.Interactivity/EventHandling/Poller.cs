@@ -72,6 +72,39 @@ namespace DSharpPlus.Interactivity.EventHandling
             return result;
         }
 
+        public async Task<ReadOnlyCollection<PollEmoji>> RecoverPollAsync(PollRequest request)
+        {
+            ReadOnlyCollection<PollEmoji> result = null;
+
+            // Before adding this request to the active request list, try to restore collected votes.
+            try
+            {
+                await request.RestoreCollectedAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                this._client.Logger.LogError(InteractivityEvents.InteractivityPollError, ex, "Exception occurred while restoring polled data");
+            }
+
+            this._requests.Add(request);
+
+            try
+            {
+                await request._tcs.Task.ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                this._client.Logger.LogError(InteractivityEvents.InteractivityPollError, ex, "Exception occurred while polling");
+            }
+            finally
+            {
+                result = new ReadOnlyCollection<PollEmoji>(new HashSet<PollEmoji>(request._collected).ToList());
+                request.Dispose();
+                this._requests.TryRemove(request);
+            }
+            return result;
+        }
+
         private Task HandleReactionAdd(DiscordClient client, MessageReactionAddEventArgs eventargs)
         {
             if (this._requests.Count == 0)

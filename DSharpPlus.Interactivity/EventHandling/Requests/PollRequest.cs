@@ -62,6 +62,29 @@ namespace DSharpPlus.Interactivity.EventHandling
             }
         }
 
+        internal async Task RestoreCollectedAsync()
+        {
+            foreach (var pollEmoji in this._collected)
+            {
+                var perTick = 1000;
+                var lastId = 0ul;
+
+                IReadOnlyList<DiscordUser> reactions;
+                do
+                {
+                    reactions = await this._message.GetReactionsAsync(pollEmoji.Emoji, perTick, lastId);
+                    foreach (var r in reactions)
+                    {
+                        lastId = r.Id;
+                        if (!r.IsCurrent)
+                        {
+                            this.AddReaction(pollEmoji.Emoji, r);
+                        }
+                    }
+                } while (reactions.Count == perTick);
+            }
+        }
+
         internal void ClearCollected()
         {
             this._collected.Clear();

@@ -115,6 +115,37 @@ namespace DSharpPlus.Interactivity
         }
 
         /// <summary>
+        /// Recovers a poll after a bot crash and returns poll results.
+        /// Requires that the original poll behaviour was PollBehaviour.KeepEmojis.
+        /// </summary>
+        /// <param name="m">Message to create poll on.</param>
+        /// <param name="emojis">Emojis to use for this poll.</param>
+        /// <param name="behaviour">What to do when the poll ends.</param>
+        /// <param name="timeout">override timeout period.</param>
+        /// <returns></returns>
+        public async Task<ReadOnlyCollection<PollEmoji>> RecoverPollAsync(DiscordMessage m, IEnumerable<DiscordEmoji> emojis, PollBehaviour? behaviour = default, TimeSpan? timeout = null)
+        {
+            if (!Utilities.HasReactionIntents(this.Client.Configuration.Intents))
+                throw new InvalidOperationException("No reaction intents are enabled.");
+
+            if (!emojis.Any())
+                throw new ArgumentException("You need to provide at least one emoji for a poll!");
+
+            foreach (var em in emojis)
+                await m.CreateReactionAsync(em).ConfigureAwait(false);
+
+            var res = await this.Poller.RecoverPollAsync(new PollRequest(m, timeout ?? this.Config.Timeout, emojis)).ConfigureAwait(false);
+
+            var pollbehaviour = behaviour ?? this.Config.PollBehaviour;
+            var thismember = await m.Channel.Guild.GetMemberAsync(this.Client.CurrentUser.Id).ConfigureAwait(false);
+
+            if (pollbehaviour == PollBehaviour.DeleteEmojis && m.Channel.PermissionsFor(thismember).HasPermission(Permissions.ManageMessages))
+                await m.DeleteAllReactionsAsync().ConfigureAwait(false);
+
+            return new ReadOnlyCollection<PollEmoji>(res.ToList());
+        }
+
+        /// <summary>
         /// Waits for any button in the specified collection to be pressed.
         /// </summary>
         /// <param name="message">The message to wait on.</param>
